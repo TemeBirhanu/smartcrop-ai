@@ -1,0 +1,39 @@
+# Model configurations
+
+# On-device model (MobileNetV3)
+mobilenet:
+  name: "mobilenet_v3_large"
+  pretrained: true
+  num_classes: 38  # Adjust based on your dataset
+  input_size: 224
+  dropout: 0.2
+
+# Server model (EfficientNet-B3)
+efficientnet:
+  name: "efficientnet_b3"
+  pretrained: true
+  num_classes: 38
+  input_size: 300
+  dropout: 0.3
+
+# YOLOv8 detector
+yolo:
+  model_size: "n"  # "n" (nano) or "s" (small)
+  pretrained: true
+  num_classes: 10  # Number of disease classes to detect
+  img_size: 640
+  conf_threshold: 0.25
+  iou_threshold: 0.45
+
+# Growth stage classifier (ResNet50 from AgML)
+growth_stage:
+  name: "resnet50"
+  pretrained: true
+  num_classes: 4  # Seedling, Vegetative, Flowering, Maturity
+  input_size: 224
+
+# SAM (Segment Anything Model)
+sam:
+  checkpoint: "sam_vit_h_4b8939.pth"  # Download from Meta
+  model_type: "vit_h"  # "vit_h", "vit_l", or "vit_b"
+

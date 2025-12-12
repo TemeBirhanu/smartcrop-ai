@@ -1,0 +1,18 @@
+# Default configuration for SmartCrop AI
+project_name: "smartcrop-ai"
+version: "1.0.0"
+
+# Paths
+data_dir: "data"
+output_dir: "outputs"
+experiments_dir: "experiments"
+
+# Device
+device: "cuda"  # "cuda" or "cpu"
+seed: 42
+
+# Logging
+log_level: "INFO"
+use_tensorboard: true
+use_mlflow: false
+

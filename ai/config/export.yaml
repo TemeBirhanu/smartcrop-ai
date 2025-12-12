@@ -1,0 +1,29 @@
+# Model export configuration
+
+# TFLite export (for mobile)
+tflite:
+  enabled: true
+  quantization: "int8"  # "int8", "float16", or "none"
+  optimize: true
+  target_size_mb: 10  # Target model size in MB
+
+# ONNX export (for server)
+onnx:
+  enabled: true
+  opset_version: 13
+  dynamic_axes:
+    input: [0, 2, 3]  # Batch, height, width
+  optimize: true
+
+# Export paths
+export_paths:
+  tflite: "outputs/models/classifier/mobilenet_v3.tflite"
+  onnx: "outputs/models/classifier/efficientnet_b3.onnx"
+  pytorch: "outputs/models/classifier/best_model.pth"
+
+# Validation after export
+validate_export:
+  enabled: true
+  num_test_samples: 100
+  max_accuracy_drop: 0.02  # Max 2% accuracy drop allowed
+

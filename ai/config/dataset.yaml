@@ -1,0 +1,52 @@
+# Dataset configuration
+
+# Data paths
+raw_data_dir: "data/raw"
+processed_data_dir: "data/processed"
+annotations_dir: "data/annotations"
+splits_dir: "data/splits"
+metadata_dir: "data/metadata"
+
+# Supported crops
+crops:
+  - maize
+  - wheat
+  - teff
+  - sorghum
+  - tomato
+  - potato
+  - coffee
+  - barley
+
+# Image preprocessing
+preprocessing:
+  resize: 224  # or 320 for EfficientNet
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# Data augmentation
+augmentation:
+  train:
+    horizontal_flip: 0.5
+    vertical_flip: 0.3
+    rotation: 15
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    random_crop: true
+  
+  val:
+    # Minimal augmentation for validation
+    resize: true
+
+# Train/Val/Test split
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+  stratified: true
+  random_seed: 42
+
