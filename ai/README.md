@@ -1,0 +1,116 @@
+# SmartCrop AI - Machine Learning Module
+
+This directory contains the AI/ML components for SmartCrop AI, including model training, inference, and export pipelines.
+
+## 📁 Project Structure
+
+```
+ai/
+├── config/              # Configuration files (YAML)
+├── data/                # Datasets (not committed to Git)
+├── notebooks/            # Jupyter notebooks for experimentation
+├── src/                  # Main source code
+│   ├── data/            # Data loaders and preprocessing
+│   ├── models/          # Model definitions
+│   ├── training/        # Training scripts
+│   ├── inference/       # Inference pipeline
+│   ├── utils/           # Utility functions
+│   └── export/          # Model export (TFLite/ONNX)
+├── experiments/         # Experiment results
+├── outputs/             # Trained models and outputs
+└── tests/               # Unit tests
+```
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
+
+```bash
+# Create virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install requirements
+pip install -r requirements.txt
+```
+
+### 2. Download Pretrained Models
+
+- **SAM (Segment Anything Model)**: Download from [Meta AI](https://github.com/facebookresearch/segment-anything#model-checkpoints)
+- **YOLOv8**: Automatically downloaded by ultralytics
+- **EfficientNet/MobileNet**: Automatically downloaded by torchvision
+
+### 3. Prepare Data
+
+Place your datasets in `data/raw/` following this structure:
+```
+data/raw/
+├── maize/
+│   ├── healthy/
+│   ├── leaf_blight/
+│   └── ...
+├── wheat/
+└── ...
+```
+
+### 4. Run Training
+
+```bash
+# Train classifier
+python src/training/train_classifier.py --config config/training.yaml
+
+# Train detector
+python src/training/train_detector.py --config config/training.yaml
+```
+
+### 5. Run Inference
+
+```bash
+# Single image prediction
+python src/inference/predict_image.py --image path/to/image.jpg
+
+# Batch inference
+python src/inference/batch_inference.py --folder path/to/images/
+```
+
+## 🔧 Configuration
+
+All configuration files are in `config/`:
+- `default.yaml`: General settings
+- `model.yaml`: Model architectures and hyperparameters
+- `dataset.yaml`: Data paths and preprocessing
+- `training.yaml`: Training parameters
+- `export.yaml`: Model export settings
+
+## 📊 Models
+
+### On-Device Model
+- **MobileNetV3**: Lightweight model for offline inference (~5MB TFLite)
+- Trained on PlantVillage + custom Ethiopian crop data
+
+### Server Models
+- **EfficientNet-B3**: High-accuracy classification
+- **YOLOv8**: Disease lesion detection
+- **SAM**: Precise segmentation
+- **ResNet50 (AgML)**: Growth stage classification
+
+## 🧪 Experiments
+
+Jupyter notebooks in `notebooks/`:
+1. `01_explore_dataset.ipynb`: Dataset exploration
+2. `02_train_classifier.ipynb`: Classification training
+3. `03_finetune_pretrained.ipynb`: Transfer learning
+4. `04_detect_disease_yolo.ipynb`: YOLO training
+5. `05_growth_stage_model.ipynb`: Growth stage classifier
+6. `06_export_tflite.ipynb`: TFLite export
+7. `07_export_onnx.ipynb`: ONNX export
+
+## 📝 Notes
+
+- Large datasets and model weights are excluded via `.gitignore`
+- Use `data/.gitkeep` to preserve directory structure
+- Experiment results are logged to `experiments/`
+- Final models are saved to `outputs/models/`
+
+
+
