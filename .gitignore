@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# TensorFlow
+*.pb
+*.h5
+*.hdf5
+
+# Model files (large)
+*.onnx
+*.tflite
+*.pkl
+*.joblib
+
+# Data directories (large datasets)
+data/raw/
+data/processed/
+data/annotations/
+data/splits/
+*.jpg
+*.jpeg
+*.png
+*.tiff
+*.bmp
+*.npy
+*.npz
+
+# Experiments and outputs
+experiments/
+outputs/
+logs/
+runs/
+wandb/
+mlruns/
+tensorboard/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.log
+*.cache
+
+# Model checkpoints (keep structure, ignore weights)
+outputs/models/*.pth
+outputs/models/*.pt
+outputs/models/*.onnx
+outputs/models/*.tflite
+
+# Keep directory structure
+!outputs/models/.gitkeep
+!data/.gitkeep
+!experiments/.gitkeep
+
