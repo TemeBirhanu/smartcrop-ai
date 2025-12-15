@@ -76,3 +76,13 @@ def get_val_transforms() -> A.Compose:
         ToTensorV2()
     ])
 
+
+def get_inference_transforms() -> A.Compose:
+    """
+    Get inference transforms (same as validation - no augmentation).
+    
+    Returns:
+        Albumentations compose object
+    """
+    return get_val_transforms()
+
