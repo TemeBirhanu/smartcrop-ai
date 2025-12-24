@@ -33,7 +33,8 @@ def load_model(model_type: str, checkpoint_path: str, num_classes: int, device: 
         raise ValueError(f"Unsupported model type: {model_type}")
     
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    # Use weights_only=False for PyTorch 2.6+ compatibility (we trust our own checkpoints)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if 'model_state_dict' in checkpoint:
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
@@ -79,6 +80,12 @@ def main():
         help='Path to class map JSON file'
     )
     parser.add_argument(
+        '--num-classes',
+        type=int,
+        default=None,
+        help='Number of classes (if class map not available)'
+    )
+    parser.add_argument(
         '--device',
         type=str,
         default=None,
@@ -109,17 +116,52 @@ def main():
     device = get_device(args.device)
     logger.info(f"Using device: {device}")
     
-    # Load class map
+    # Load class map (prioritize this over num_classes)
+    class_names = None
+    num_classes = None
+    
+    # Try to load class map first (gives actual class names)
     try:
-        class_map = load_json(args.class_map)
-        class_names = [k for k in sorted(class_map.keys(), key=lambda x: class_map[x])]
-        num_classes = len(class_names)
-        logger.info(f"Loaded {num_classes} classes")
+        class_map_path = Path(args.class_map)
+        if class_map_path.exists():
+            class_map = load_json(args.class_map)
+            class_names = [k for k in sorted(class_map.keys(), key=lambda x: class_map[x])]
+            num_classes = len(class_names)
+            logger.info(f"✓ Loaded {num_classes} classes from class map")
+            logger.info(f"  Classes: {', '.join(class_names[:5])}..." if len(class_names) > 5 else f"  Classes: {', '.join(class_names)}")
+        else:
+            logger.info(f"Class map not found at {args.class_map}, will try other methods")
     except Exception as e:
-        logger.error(f"Failed to load class map: {e}")
-        logger.info("Using default class names")
-        class_names = [f"Class_{i}" for i in range(10)]  # Default
-        num_classes = 10
+        logger.warning(f"Failed to load class map: {e}")
+    
+    # If class map not available, try to detect from checkpoint
+    if class_names is None:
+        try:
+            checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
+            if 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            else:
+                state_dict = checkpoint
+            # Detect num_classes from checkpoint
+            for key in reversed(list(state_dict.keys())):
+                if 'classifier' in key and 'weight' in key:
+                    num_classes = state_dict[key].shape[0]
+                    break
+            
+            # Use num_classes from argument if provided, otherwise use detected
+            if args.num_classes is not None:
+                num_classes = args.num_classes
+                logger.info(f"Using {num_classes} classes (from --num-classes argument)")
+            else:
+                logger.info(f"Detected {num_classes} classes from checkpoint")
+            
+            class_names = [f"Class_{i}" for i in range(num_classes)]
+        except Exception as e2:
+            logger.error(f"Could not determine number of classes: {e2}")
+            # Use num_classes from argument or default
+            num_classes = args.num_classes if args.num_classes is not None else 10
+            class_names = [f"Class_{i}" for i in range(num_classes)]
+            logger.info(f"Using default: {num_classes} classes")
     
     # Load model
     logger.info(f"Loading model from {args.model}")

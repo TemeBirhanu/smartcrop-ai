@@ -88,19 +88,22 @@ class GradCAM:
         gradients = self.gradients[0]  # (C, H, W)
         activations = self.activations[0]  # (C, H, W)
         
+        # Get device from activations
+        device = activations.device
+        
         # Calculate weights (global average pooling of gradients)
         weights = torch.mean(gradients, dim=(1, 2))  # (C,)
         
-        # Generate heatmap
-        heatmap = torch.zeros(activations.shape[1:])
+        # Generate heatmap on the same device as activations
+        heatmap = torch.zeros(activations.shape[1:], device=device)
         for i, w in enumerate(weights):
             heatmap += w * activations[i]
         
         # Apply ReLU
         heatmap = F.relu(heatmap)
         
-        # Normalize
-        heatmap = heatmap.cpu().numpy()
+        # Normalize (detach and move to CPU after computation)
+        heatmap = heatmap.detach().cpu().numpy()
         heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
         
         return heatmap

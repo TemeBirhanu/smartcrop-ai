@@ -161,21 +161,37 @@ def main():
         # Each split folder contains crop/disease/ subfolders
         data_root = Path(args.data_dir)
         
+        # First, load training dataset to build class mapping
         train_dataset = CropDiseaseDataset(
             data_dir=str(data_root / 'train'),
             split='train',
             transform=train_transform
         )
         
+        # Get class mapping from training set (ensures consistency)
+        class_to_idx = train_dataset.class_to_idx
+        num_classes = len(class_to_idx)
+        logger.info(f"Found {num_classes} classes in dataset")
+        logger.info(f"Class mapping: {list(class_to_idx.keys())[:5]}..." if len(class_to_idx) > 5 else f"Class mapping: {list(class_to_idx.keys())}")
+        
+        # Create validation dataset with same class mapping
         val_dataset = CropDiseaseDataset(
             data_dir=str(data_root / 'val'),
             split='val',
-            transform=val_transform
+            transform=val_transform,
+            class_to_idx=class_to_idx  # Use same mapping as training
         )
         
-        # Get number of classes from dataset
-        num_classes = train_dataset.num_classes()
-        logger.info(f"Found {num_classes} classes in dataset")
+        # Log if validation has different classes
+        val_classes = set([label for _, label in val_dataset.samples])
+        train_classes = set(class_to_idx.keys())
+        if val_classes != train_classes:
+            missing_in_val = train_classes - val_classes
+            extra_in_val = val_classes - train_classes
+            if missing_in_val:
+                logger.warning(f"Classes in train but not in val: {missing_in_val}")
+            if extra_in_val:
+                logger.warning(f"Classes in val but not in train (will be skipped): {extra_in_val}")
         
         # Update model with correct number of classes
         if args.model == 'mobilenet_v3':

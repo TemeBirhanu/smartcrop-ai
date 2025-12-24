@@ -71,16 +71,74 @@ def export_model(
     
     # Load model config
     model_config_path = Path(config_path).parent / "model.yaml"
-    model = load_model_from_config(str(model_config_path), model_name)
+    model_config = load_yaml(str(model_config_path))
     
     # Load checkpoint if provided
+    checkpoint = None
     if checkpoint_path and Path(checkpoint_path).exists():
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        # Use weights_only=False for PyTorch 2.6+ compatibility (we trust our own checkpoints)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        print(f"Loaded checkpoint from {checkpoint_path}")
+    
+    # Determine number of classes from checkpoint if provided
+    num_classes = None
+    if checkpoint is not None:
+        # Get state dict
+        state_dict = checkpoint.get('model_state_dict', checkpoint)
+        
+        # Detect number of classes from checkpoint
+        # Look for the classifier output layer (last linear layer)
+        for key in reversed(list(state_dict.keys())):
+            if 'classifier' in key and 'weight' in key:
+                num_classes = state_dict[key].shape[0]
+                print(f"Detected {num_classes} classes from checkpoint")
+                break
+        
+        # If not found, try to get from checkpoint metadata
+        if num_classes is None and 'num_classes' in checkpoint:
+            num_classes = checkpoint['num_classes']
+            print(f"Found {num_classes} classes in checkpoint metadata")
+    
+    # Use config default if checkpoint doesn't have it
+    if num_classes is None:
+        # Map model_name to config key
+        config_key_map = {
+            'mobilenet_v3': 'mobilenet',
+            'efficientnet_b3': 'efficientnet'
+        }
+        config_key = config_key_map.get(model_name, model_name)
+        model_config_dict = model_config.get(config_key, {})
+        num_classes = model_config_dict.get('num_classes', 10)
+        print(f"Using {num_classes} classes from config (default)")
+    
+    # Create model with correct number of classes
+    # Map model_name to config key
+    config_key_map = {
+        'mobilenet_v3': 'mobilenet',
+        'efficientnet_b3': 'efficientnet'
+    }
+    config_key = config_key_map.get(model_name, model_name)
+    pretrained = model_config.get(config_key, {}).get('pretrained', False)
+    if model_name == 'mobilenet_v3':
+        model = MobileNetV3Classifier(
+            num_classes=num_classes,
+            pretrained=pretrained
+        )
+    elif model_name == 'efficientnet_b3':
+        model = EfficientNetClassifier(
+            num_classes=num_classes,
+            pretrained=pretrained
+        )
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")
+    
+    # Load checkpoint weights
+    if checkpoint is not None:
         if 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
         else:
             model.load_state_dict(checkpoint)
-        print(f"Loaded checkpoint from {checkpoint_path}")
+        print(f"✓ Model weights loaded successfully")
     
     model.eval()
     model = model.to(device)

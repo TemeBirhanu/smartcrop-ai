@@ -82,7 +82,8 @@ def train_classifier(
     best_val_acc = 0.0
     
     if resume_from and os.path.exists(resume_from):
-        checkpoint = torch.load(resume_from, map_location=device)
+        # Use weights_only=False for PyTorch 2.6+ compatibility (we trust our own checkpoints)
+        checkpoint = torch.load(resume_from, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch']

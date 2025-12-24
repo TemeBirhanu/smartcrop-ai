@@ -17,6 +17,7 @@ segment-anything>=1.0
 # Model Export
 onnx>=1.14.0
 onnxruntime>=1.15.0
+onnxscript>=0.1.0  # Required for PyTorch 2.x ONNX export
 tensorflow>=2.13.0
 
 # Data Processing

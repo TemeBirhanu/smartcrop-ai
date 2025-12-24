@@ -30,7 +30,8 @@ class CropDiseaseDataset(Dataset):
         data_dir: str,
         split: str = "train",
         transform: Optional[Callable] = None,
-        crops: Optional[List[str]] = None
+        crops: Optional[List[str]] = None,
+        class_to_idx: Optional[dict] = None
     ):
         """
         Initialize dataset.
@@ -40,6 +41,7 @@ class CropDiseaseDataset(Dataset):
             split: "train", "val", or "test"
             transform: Albumentations transform
             crops: List of crops to include (None = all)
+            class_to_idx: Optional pre-built class mapping (for consistency across splits)
         """
         self.data_dir = Path(data_dir)
         self.split = split
@@ -47,7 +49,18 @@ class CropDiseaseDataset(Dataset):
         
         # Load data
         self.samples = self._load_samples(crops)
-        self.class_to_idx = self._build_class_mapping()
+        
+        # Use provided mapping or build new one
+        if class_to_idx is not None:
+            self.class_to_idx = class_to_idx
+            # Filter out samples with classes not in the mapping
+            self.samples = [
+                (img_path, class_name) for img_path, class_name in self.samples
+                if class_name in self.class_to_idx
+            ]
+        else:
+            self.class_to_idx = self._build_class_mapping()
+        
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
         
     def _load_samples(self, crops: Optional[List[str]]) -> List[Tuple[str, str]]:
@@ -119,7 +132,19 @@ class CropDiseaseDataset(Dataset):
             image = transform(image)
         
         # Get class index
+        if class_name not in self.class_to_idx:
+            raise ValueError(
+                f"Class '{class_name}' not found in class mapping. "
+                f"Available classes: {list(self.class_to_idx.keys())[:10]}..."
+            )
         class_idx = self.class_to_idx[class_name]
+        
+        # Safety check: ensure index is valid
+        if class_idx < 0 or class_idx >= len(self.class_to_idx):
+            raise ValueError(
+                f"Invalid class index {class_idx} for class '{class_name}'. "
+                f"Expected range: [0, {len(self.class_to_idx)-1}]"
+            )
         
         return image, class_idx
     
