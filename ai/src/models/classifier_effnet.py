@@ -39,11 +39,12 @@ class EfficientNetClassifier(nn.Module):
         # Replace only the classification head
         # Backbone stays frozen, only this head will be trained
         in_features = self.backbone.classifier[1].in_features
+        # Note: inplace=False to avoid gradient computation issues with EfficientNet
         self.backbone.classifier = nn.Sequential(
-            nn.Dropout(p=dropout, inplace=True),
+            nn.Dropout(p=dropout, inplace=False),
             nn.Linear(in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=dropout, inplace=True),
+            nn.ReLU(inplace=False),
+            nn.Dropout(p=dropout, inplace=False),
             nn.Linear(512, num_classes)
         )
     

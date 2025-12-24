@@ -42,6 +42,8 @@ pip install -r requirements.txt
 
 ### 3. Prepare Data
 
+**📖 See [DATASET_GUIDE.md](DATASET_GUIDE.md) for detailed information on where to get datasets for Ethiopian crops.**
+
 Place your datasets in `data/raw/` following this structure:
 ```
 data/raw/
@@ -52,6 +54,14 @@ data/raw/
 ├── wheat/
 └── ...
 ```
+
+**Quick start with PlantVillage dataset:**
+```bash
+# Download and organize PlantVillage dataset
+python scripts/download_plantvillage.py
+```
+
+This will download the PlantVillage dataset (includes maize, wheat, sorghum, barley) and organize it for training.
 
 ### 4. Run Training
 
@@ -84,15 +94,33 @@ All configuration files are in `config/`:
 
 ## 📊 Models
 
+### Pretraining Strategy
+
+**Important**: The models use a **3-stage transfer learning** approach:
+
+1. **ImageNet Pretrained** (already done by torchvision)
+   - MobileNetV3, EfficientNet-B3, ResNet50
+   - General image recognition features
+   - Automatically downloaded when you create the model
+
+2. **PlantVillage Fine-tuning** (you do this)
+   - Fine-tune on PlantVillage dataset (~54K images)
+   - Learn plant disease-specific patterns
+   - Freeze backbone, train only classification head
+
+3. **Ethiopian Data Fine-tuning** (you do this as you collect data)
+   - Further fine-tune on Ethiopian crop images
+   - Adapt to local conditions and crops
+
 ### On-Device Model
 - **MobileNetV3**: Lightweight model for offline inference (~5MB TFLite)
-- Trained on PlantVillage + custom Ethiopian crop data
+- Starts with ImageNet pretrained → Fine-tuned on PlantVillage → Fine-tuned on Ethiopian data
 
 ### Server Models
-- **EfficientNet-B3**: High-accuracy classification
-- **YOLOv8**: Disease lesion detection
-- **SAM**: Precise segmentation
-- **ResNet50 (AgML)**: Growth stage classification
+- **EfficientNet-B3**: High-accuracy classification (ImageNet → PlantVillage → Ethiopian)
+- **YOLOv8**: Disease lesion detection (COCO pretrained → Fine-tuned on lesion data)
+- **SAM**: Precise segmentation (pretrained by Meta AI)
+- **ResNet50**: Growth stage classification (ImageNet → Fine-tuned on growth stage data)
 
 ## 🧪 Experiments
 

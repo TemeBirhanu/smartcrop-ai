@@ -54,14 +54,30 @@ class CropDiseaseDataset(Dataset):
         if class_to_idx is not None:
             self.class_to_idx = class_to_idx
             # Filter out samples with classes not in the mapping
+            original_count = len(self.samples)
             self.samples = [
                 (img_path, class_name) for img_path, class_name in self.samples
                 if class_name in self.class_to_idx
             ]
+            filtered_count = original_count - len(self.samples)
+            if filtered_count > 0:
+                print(f"⚠️  Filtered out {filtered_count} samples with classes not in mapping (split: {self.split})")
         else:
             self.class_to_idx = self._build_class_mapping()
         
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
+        
+        # Verify all samples have valid class indices
+        invalid_samples = []
+        for img_path, class_name in self.samples:
+            if class_name not in self.class_to_idx:
+                invalid_samples.append((img_path, class_name))
+        
+        if invalid_samples:
+            raise ValueError(
+                f"Found {len(invalid_samples)} samples with invalid class names in {self.split} split. "
+                f"First invalid: {invalid_samples[0]}"
+            )
         
     def _load_samples(self, crops: Optional[List[str]]) -> List[Tuple[str, str]]:
         """

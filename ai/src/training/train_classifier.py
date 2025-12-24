@@ -144,10 +144,28 @@ def train_classifier(
         all_labels = []
         
         with torch.no_grad():
+            # Get number of classes from model
+            if hasattr(model, 'backbone') and hasattr(model.backbone, 'classifier'):
+                if isinstance(model.backbone.classifier, nn.Sequential):
+                    num_classes = model.backbone.classifier[-1].out_features
+                else:
+                    num_classes = model.backbone.classifier.out_features
+            else:
+                # Fallback: get from last layer
+                for module in model.modules():
+                    if isinstance(module, nn.Linear):
+                        num_classes = module.out_features
+            
             val_pbar = tqdm(val_loader, desc="Validation")
             for images, labels in val_pbar:
                 images = images.to(device)
                 labels = labels.to(device)
+                
+                # Safety check: ensure labels are in valid range
+                if labels.max() >= num_classes or labels.min() < 0:
+                    print(f"⚠️  Invalid labels detected: min={labels.min()}, max={labels.max()}, num_classes={num_classes}")
+                    print(f"   This batch will be skipped. Check dataset class mapping.")
+                    continue
                 
                 outputs = model(images)
                 loss = criterion(outputs, labels)

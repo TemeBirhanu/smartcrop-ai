@@ -193,6 +193,24 @@ def main():
             if extra_in_val:
                 logger.warning(f"Classes in val but not in train (will be skipped): {extra_in_val}")
         
+        # Verify all validation samples have valid class indices
+        invalid_samples = []
+        for img_path, class_name in val_dataset.samples[:10]:  # Check first 10
+            if class_name not in class_to_idx:
+                invalid_samples.append((img_path, class_name))
+        
+        if invalid_samples:
+            logger.error(f"Found invalid samples in validation set: {invalid_samples[:3]}")
+            raise ValueError("Validation dataset has samples with invalid class names")
+        
+        # Verify class indices are in valid range
+        max_idx = max(class_to_idx.values())
+        if max_idx >= num_classes:
+            logger.error(f"Class index {max_idx} >= num_classes {num_classes}")
+            raise ValueError(f"Invalid class mapping: max index {max_idx} >= num_classes {num_classes}")
+        
+        logger.info(f"✓ Verified: All validation samples have valid class indices (0-{num_classes-1})")
+        
         # Update model with correct number of classes
         if args.model == 'mobilenet_v3':
             model = MobileNetV3Classifier(
