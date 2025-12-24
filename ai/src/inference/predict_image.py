@@ -45,15 +45,21 @@ def predict_disease(
     # Get transforms
     transform = get_inference_transforms()
     
-    # Preprocess image
+    # Preprocess image - Albumentations expects numpy array
     if isinstance(image, np.ndarray):
         # Convert BGR to RGB if needed
         if len(image.shape) == 3 and image.shape[2] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(image)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        else:
+            image_rgb = image
+    elif isinstance(image, Image.Image):
+        image_rgb = np.array(image.convert('RGB'))
+    else:
+        raise ValueError(f"Unsupported image type: {type(image)}")
     
-    # Apply transforms
-    image_tensor = transform(image).unsqueeze(0).to(device)
+    # Apply transforms (Albumentations expects dict with 'image' key)
+    transformed = transform(image=image_rgb)
+    image_tensor = transformed['image'].unsqueeze(0).to(device)
     
     # Run inference
     with torch.no_grad():
@@ -116,13 +122,20 @@ def predict_batch(
         # Preprocess batch
         batch_tensors = []
         for img in batch_images:
+            # Convert to RGB numpy array
             if isinstance(img, np.ndarray):
                 if len(img.shape) == 3 and img.shape[2] == 3:
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(img)
+                    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                else:
+                    img_rgb = img
+            elif isinstance(img, Image.Image):
+                img_rgb = np.array(img.convert('RGB'))
+            else:
+                raise ValueError(f"Unsupported image type: {type(img)}")
             
-            img_tensor = transform(img)
-            batch_tensors.append(img_tensor)
+            # Apply transforms (Albumentations expects dict with 'image' key)
+            transformed = transform(image=img_rgb)
+            batch_tensors.append(transformed['image'])
         
         batch_tensor = torch.stack(batch_tensors).to(device)
         

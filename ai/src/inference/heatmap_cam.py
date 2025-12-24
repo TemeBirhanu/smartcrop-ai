@@ -142,12 +142,15 @@ def generate_gradcam_heatmap(
     from ..data.transforms import get_inference_transforms
     transform = get_inference_transforms()
     
-    if isinstance(image_rgb, np.ndarray):
-        image_pil = Image.fromarray(image_rgb)
-    else:
-        image_pil = image_rgb
+    # Ensure image is numpy array (RGB)
+    if isinstance(image_rgb, Image.Image):
+        image_rgb = np.array(image_rgb.convert('RGB'))
+    elif not isinstance(image_rgb, np.ndarray):
+        raise ValueError(f"Unsupported image type: {type(image_rgb)}")
     
-    input_tensor = transform(image_pil).unsqueeze(0).to(device)
+    # Apply transforms (Albumentations expects dict with 'image' key)
+    transformed = transform(image=image_rgb)
+    input_tensor = transformed['image'].unsqueeze(0).to(device)
     
     # Get original image size
     orig_h, orig_w = image_rgb.shape[:2]

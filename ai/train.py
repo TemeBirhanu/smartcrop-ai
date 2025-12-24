@@ -16,7 +16,8 @@ import yaml
 from src.training.train_classifier import train_classifier
 from src.models.classifier_mobilenet import MobileNetV3Classifier
 from src.models.classifier_effnet import EfficientNetClassifier
-from src.data.dataset import CropDataset
+from src.data.dataset import CropDiseaseDataset
+from src.data.transforms import get_train_transforms, get_val_transforms
 from src.utils.logger import setup_logger
 from src.utils.seed import set_seed
 from src.utils.helpers import get_device
@@ -94,6 +95,12 @@ def main():
         default=32,
         help='Batch size'
     )
+    parser.add_argument(
+        '--image-size',
+        type=int,
+        default=224,
+        help='Image size for resizing (default: 224). Use 128 for faster training, 160 for balance'
+    )
     
     args = parser.parse_args()
     
@@ -132,69 +139,81 @@ def main():
     
     # Load model config
     model_config = configs['model'].get(args.model, {})
-    num_classes = model_config.get('num_classes', 10)
     pretrained = model_config.get('pretrained', True)
     
-    # Create model
-    logger.info(f"Creating {args.model} model with {num_classes} classes...")
-    if args.model == 'mobilenet_v3':
-        model = MobileNetV3Classifier(
-            num_classes=num_classes,
-            pretrained=pretrained
-        )
-    elif args.model == 'efficientnet_b3':
-        model = EfficientNetClassifier(
-            num_classes=num_classes,
-            pretrained=pretrained
-        )
+    # Model will be created after we know num_classes from dataset
+    model = None
     
     # Create data loaders
     logger.info("Creating data loaders...")
     try:
         from torch.utils.data import DataLoader
-        from src.data.dataset import CropDataset
         
-        image_size = configs['dataset'].get('image_size', 224)
+        # Use command-line argument if provided, otherwise use config
+        image_size = args.image_size if hasattr(args, 'image_size') else configs['dataset'].get('image_size', 224)
+        logger.info(f"Using image size: {image_size}x{image_size}")
         
-        # Try to load datasets
-        train_dataset = CropDataset(
-            data_dir=os.path.join(args.data_dir, 'train'),
-            annotations_file=os.path.join(args.annotations, 'train_annotations.csv'),
-            image_size=image_size,
-            augment=True
+        # Get transforms with resize
+        train_transform = get_train_transforms(image_size=image_size)
+        val_transform = get_val_transforms(image_size=image_size)
+        
+        # Load datasets - expects data_dir to contain train/, val/, test/ folders
+        # Each split folder contains crop/disease/ subfolders
+        data_root = Path(args.data_dir)
+        
+        train_dataset = CropDiseaseDataset(
+            data_dir=str(data_root / 'train'),
+            split='train',
+            transform=train_transform
         )
         
-        val_dataset = CropDataset(
-            data_dir=os.path.join(args.data_dir, 'val'),
-            annotations_file=os.path.join(args.annotations, 'val_annotations.csv'),
-            image_size=image_size,
-            augment=False
+        val_dataset = CropDiseaseDataset(
+            data_dir=str(data_root / 'val'),
+            split='val',
+            transform=val_transform
         )
+        
+        # Get number of classes from dataset
+        num_classes = train_dataset.num_classes()
+        logger.info(f"Found {num_classes} classes in dataset")
+        
+        # Update model with correct number of classes
+        if args.model == 'mobilenet_v3':
+            model = MobileNetV3Classifier(
+                num_classes=num_classes,
+                pretrained=model_config.get('pretrained', True)
+            )
+        elif args.model == 'efficientnet_b3':
+            model = EfficientNetClassifier(
+                num_classes=num_classes,
+                pretrained=model_config.get('pretrained', True)
+            )
         
         train_loader = DataLoader(
             train_dataset,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=2
+            num_workers=2,
+            pin_memory=True if str(device) == 'cuda' else False
         )
         
         val_loader = DataLoader(
             val_dataset,
             batch_size=args.batch_size,
             shuffle=False,
-            num_workers=2
+            num_workers=2,
+            pin_memory=True if str(device) == 'cuda' else False
         )
         
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
         
     except Exception as e:
-        logger.error(f"Failed to create data loaders: {e}")
+        logger.error(f"Failed to create data loaders: {e}", exc_info=True)
         logger.info("Note: You need to prepare your dataset first.")
         logger.info("Expected structure:")
-        logger.info(f"  {args.data_dir}/train/ - training images")
-        logger.info(f"  {args.data_dir}/val/ - validation images")
-        logger.info(f"  {args.annotations}/train_annotations.csv - training annotations")
-        logger.info(f"  {args.annotations}/val_annotations.csv - validation annotations")
+        logger.info(f"  {args.data_dir}/train/crop/disease/ - training images")
+        logger.info(f"  {args.data_dir}/val/crop/disease/ - validation images")
+        logger.info(f"  {args.data_dir}/test/crop/disease/ - test images")
         return
     
     # Run training

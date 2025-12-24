@@ -35,11 +35,53 @@ class MobileNetV3Classifier(nn.Module):
         
         # Load pretrained MobileNetV3-Large (trained on ImageNet)
         # This gives us powerful feature extraction without training from scratch
-        self.backbone = models.mobilenet_v3_large(pretrained=pretrained)
+        if pretrained:
+            # Use weights parameter for newer torchvision
+            try:
+                from torchvision.models import MobileNet_V3_Large_Weights
+                self.backbone = models.mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.IMAGENET1K_V1)
+            except (ImportError, AttributeError):
+                # Fallback for older torchvision
+                self.backbone = models.mobilenet_v3_large(pretrained=True)
+        else:
+            self.backbone = models.mobilenet_v3_large(pretrained=False)
         
         # Replace only the classification head
         # Backbone stays frozen, only this head will be trained
-        in_features = self.backbone.classifier[-1].in_features
+        # MobileNetV3-Large classifier structure: Sequential(
+        #   Linear(960, 1280),  # First linear layer
+        #   Hardswish(),
+        #   Dropout(),
+        #   Linear(1280, num_classes)  # Last linear layer
+        # )
+        # We need to get the input features from the FIRST Linear layer
+        original_classifier = self.backbone.classifier
+        
+        # Get input features from the first Linear layer
+        if isinstance(original_classifier, nn.Sequential):
+            # Find the first Linear layer
+            in_features = None
+            for layer in original_classifier:
+                if isinstance(layer, nn.Linear):
+                    in_features = layer.in_features
+                    break
+        else:
+            # If not Sequential, try to get from first layer
+            if hasattr(original_classifier, '__getitem__'):
+                first_layer = original_classifier[0]
+                if isinstance(first_layer, nn.Linear):
+                    in_features = first_layer.in_features
+                else:
+                    in_features = 960  # MobileNetV3-Large default
+            else:
+                in_features = 960
+        
+        # Default to 960 if not found (MobileNetV3-Large standard input to classifier)
+        if in_features is None:
+            in_features = 960
+        
+        # Replace classifier with new one
+        # Input: 960 features from backbone, Output: num_classes
         self.backbone.classifier = nn.Sequential(
             nn.Linear(in_features, 128),
             nn.Hardswish(inplace=True),

@@ -7,12 +7,13 @@ from albumentations.pytorch import ToTensorV2
 from typing import Dict, Any
 
 
-def get_train_transforms(config: Dict[str, Any] = None) -> A.Compose:
+def get_train_transforms(config: Dict[str, Any] = None, image_size: int = 224) -> A.Compose:
     """
     Get training data augmentation transforms.
     
     Args:
         config: Configuration dictionary with augmentation parameters
+        image_size: Target image size (default: 224)
     
     Returns:
         Albumentations compose object
@@ -30,7 +31,9 @@ def get_train_transforms(config: Dict[str, Any] = None) -> A.Compose:
             }
         }
     
+    # Resize must be first to ensure all images are same size
     transforms_list = [
+        A.Resize(image_size, image_size),
         A.HorizontalFlip(p=config.get("horizontal_flip", 0.5)),
         A.VerticalFlip(p=config.get("vertical_flip", 0.3)),
         A.Rotate(limit=config.get("rotation", 15), p=0.5),
@@ -61,14 +64,18 @@ def get_train_transforms(config: Dict[str, Any] = None) -> A.Compose:
     return A.Compose(transforms_list)
 
 
-def get_val_transforms() -> A.Compose:
+def get_val_transforms(image_size: int = 224) -> A.Compose:
     """
     Get validation/test transforms (minimal augmentation).
+    
+    Args:
+        image_size: Target image size (default: 224)
     
     Returns:
         Albumentations compose object
     """
     return A.Compose([
+        A.Resize(image_size, image_size),
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
@@ -77,12 +84,15 @@ def get_val_transforms() -> A.Compose:
     ])
 
 
-def get_inference_transforms() -> A.Compose:
+def get_inference_transforms(image_size: int = 224) -> A.Compose:
     """
     Get inference transforms (same as validation - no augmentation).
+    
+    Args:
+        image_size: Target image size (default: 224)
     
     Returns:
         Albumentations compose object
     """
-    return get_val_transforms()
+    return get_val_transforms(image_size)
 
