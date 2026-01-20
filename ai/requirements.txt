@@ -1,11 +1,11 @@
 # Core ML Libraries
 torch>=2.0.0
 torchvision>=0.15.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0  # Pin to NumPy 1.x (pandas/pyarrow compatibility)
 pillow>=9.5.0
 
 # Computer Vision
-opencv-python>=4.8.0
+opencv-python>=4.8.0,<4.10.0  # Compatible with NumPy 1.x
 albumentations>=1.3.0
 
 # YOLO

@@ -5,7 +5,6 @@ PyTorch Dataset class for crop disease classification
 import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Callable
-import pandas as pd
 import numpy as np
 from PIL import Image
 import torch

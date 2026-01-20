@@ -151,6 +151,25 @@ def main():
             top_k=3
         )
         
+        # Replace fallback names like "Class_11" with actual class name if possible
+        try:
+            pred_name = classification_result.get('predicted_class')
+            if isinstance(pred_name, str) and pred_name.startswith('Class_'):
+                idx = int(pred_name.split('_', 1)[1])
+                if 0 <= idx < len(class_names):
+                    classification_result['predicted_class'] = class_names[idx]
+                    # Update top_k entries if they are fallback names
+                    for p in classification_result.get('top_k', []):
+                        if isinstance(p.get('class'), str) and p['class'].startswith('Class_'):
+                            try:
+                                i2 = int(p['class'].split('_',1)[1])
+                                if 0 <= i2 < len(class_names):
+                                    p['class'] = class_names[i2]
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
         print(f"\n   ✅ Disease: {classification_result['predicted_class']}")
         print(f"   ✅ Confidence: {classification_result['confidence']*100:.2f}%")
     
