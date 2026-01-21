@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Import prediction function from existing script
-from predict_severity_api_onnx import predict_severity_json, onnx_predict, find_default_onnx, load_class_map, load_json
+from .predict_severity_api_onnx import predict_severity_json, onnx_predict, find_default_onnx, load_class_map, load_json
 import cv2
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
@@ -138,5 +138,5 @@ async def predict(
 
 
 if __name__ == "__main__":
-    # Run with: python predict_server_fastapi.py
-    uvicorn.run("predict_server_fastapi:app", host="0.0.0.0", port=8000)
+    # Run with: python ai/predict_server_fastapi.py
+    uvicorn.run(app, host="0.0.0.0", port=8000)
