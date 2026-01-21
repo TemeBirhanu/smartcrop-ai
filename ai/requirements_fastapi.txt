@@ -1,0 +1,11 @@
+# Minimal requirements to run the FastAPI server (`predict_server_fastapi.py`) and the ONNX-based prediction flow
+# Install with: pip install -r requirements_fastapi.txt
+
+fastapi>=0.95.2
+uvicorn[standard]>=0.22.0
+python-multipart>=0.0.6  # required for multipart form uploads (UploadFile)
+onnxruntime>=1.15.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+torch>=2.0.0
+ultralytics>=8.0.0
