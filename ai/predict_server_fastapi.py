@@ -47,6 +47,9 @@ async def predict_with_severity(
     yolo_weights: str | None = Query(None, description="Path to YOLO .pt weights file")
 ):
     try:
+        # Lazy import to avoid heavy import-time dependencies during server startup
+        from .predict_severity_api_onnx import predict_severity_json
+
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -66,6 +69,8 @@ async def predict_with_severity(
         result.pop('image_path', None)
         return JSONResponse(content=result)
 
+    except ModuleNotFoundError as e:
+        raise HTTPException(status_code=500, detail=f"Missing dependency at runtime: {e.name}")
     except HTTPException:
         raise
     except Exception as e:
@@ -78,6 +83,9 @@ async def predict(
     classifier_onnx: str | None = Query(None, description="Path to ONNX classifier file (defaults to mobilenet if available)")
 ):
     try:
+        # Lazy import to avoid heavy import-time dependencies during server startup
+        from .predict_severity_api_onnx import find_default_onnx, load_class_map, load_json, onnx_predict
+
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -131,6 +139,8 @@ async def predict(
 
         return JSONResponse(content=result)
 
+    except ModuleNotFoundError as e:
+        raise HTTPException(status_code=500, detail=f"Missing dependency at runtime: {e.name}")
     except HTTPException:
         raise
     except Exception as e:
