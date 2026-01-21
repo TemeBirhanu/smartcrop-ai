@@ -30,6 +30,7 @@ import uvicorn
 # Do not import heavy prediction modules at top-level to avoid import-time failures on Render
 # Prediction functions are imported lazily inside endpoints.
 import cv2
+import asyncio
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
 
@@ -57,14 +58,20 @@ async def predict_with_severity(
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode uploaded image")
 
-        # Call prediction using in-memory image (no disk save)
-        result = predict_severity_json(
-            image=image,
-            classifier_onnx=classifier_onnx,
-            sam_checkpoint=None,
-            yolo_weights=yolo_weights,
-            skip_sam=not use_sam
-        )
+        # Call prediction using in-memory image (no disk save).
+        # Run the synchronous, CPU-bound prediction in a thread to avoid
+        # blocking the FastAPI event loop (which makes /health and other
+        # endpoints unresponsive).
+        def _sync_predict():
+            return predict_severity_json(
+                image=image,
+                classifier_onnx=classifier_onnx,
+                sam_checkpoint=None,
+                yolo_weights=yolo_weights,
+                skip_sam=not use_sam
+            )
+
+        result = await asyncio.to_thread(_sync_predict)
 
         result.pop('image_path', None)
         return JSONResponse(content=result)
@@ -120,11 +127,13 @@ async def predict(
         if class_names is None:
             class_names = [f"Class_{i}" for i in range(17)]
 
-        # Run ONNX classification
-        import onnxruntime as ort
-        session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
+        # Run ONNX classification in a thread to avoid blocking the event loop.
+        def _sync_classify():
+            import onnxruntime as ort
+            session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
+            return onnx_predict(session, image, class_names, top_k=3)
 
-        classification_result = onnx_predict(session, image, class_names, top_k=3)
+        classification_result = await asyncio.to_thread(_sync_classify)
 
         result = {
             "success": True,
