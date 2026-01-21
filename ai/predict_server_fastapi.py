@@ -27,8 +27,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
 import uvicorn
 
-# Import prediction function from existing script
-from .predict_severity_api_onnx import predict_severity_json, onnx_predict, find_default_onnx, load_class_map, load_json
+# Do not import heavy prediction modules at top-level to avoid import-time failures on Render
+# Prediction functions are imported lazily inside endpoints.
 import cv2
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
