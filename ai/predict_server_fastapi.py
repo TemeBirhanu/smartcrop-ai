@@ -27,10 +27,9 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
 import uvicorn
 
-# Do not import heavy prediction modules at top-level to avoid import-time failures on Render
-# Prediction functions are imported lazily inside endpoints.
+# Import prediction function from existing script
+from predict_severity_api_onnx import predict_severity_json, onnx_predict, find_default_onnx, load_class_map, load_json
 import cv2
-import asyncio
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
 
@@ -48,9 +47,6 @@ async def predict_with_severity(
     yolo_weights: str | None = Query(None, description="Path to YOLO .pt weights file")
 ):
     try:
-        # Lazy import to avoid heavy import-time dependencies during server startup
-        from .predict_severity_api_onnx import predict_severity_json
-
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -58,26 +54,18 @@ async def predict_with_severity(
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode uploaded image")
 
-        # Call prediction using in-memory image (no disk save).
-        # Run the synchronous, CPU-bound prediction in a thread to avoid
-        # blocking the FastAPI event loop (which makes /health and other
-        # endpoints unresponsive).
-        def _sync_predict():
-            return predict_severity_json(
-                image=image,
-                classifier_onnx=classifier_onnx,
-                sam_checkpoint=None,
-                yolo_weights=yolo_weights,
-                skip_sam=not use_sam
-            )
-
-        result = await asyncio.to_thread(_sync_predict)
+        # Call prediction using in-memory image (no disk save)
+        result = predict_severity_json(
+            image=image,
+            classifier_onnx=classifier_onnx,
+            sam_checkpoint=None,
+            yolo_weights=yolo_weights,
+            skip_sam=not use_sam
+        )
 
         result.pop('image_path', None)
         return JSONResponse(content=result)
 
-    except ModuleNotFoundError as e:
-        raise HTTPException(status_code=500, detail=f"Missing dependency at runtime: {e.name}")
     except HTTPException:
         raise
     except Exception as e:
@@ -90,9 +78,6 @@ async def predict(
     classifier_onnx: str | None = Query(None, description="Path to ONNX classifier file (defaults to mobilenet if available)")
 ):
     try:
-        # Lazy import to avoid heavy import-time dependencies during server startup
-        from .predict_severity_api_onnx import find_default_onnx, load_class_map, load_json, onnx_predict
-
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -127,13 +112,11 @@ async def predict(
         if class_names is None:
             class_names = [f"Class_{i}" for i in range(17)]
 
-        # Run ONNX classification in a thread to avoid blocking the event loop.
-        def _sync_classify():
-            import onnxruntime as ort
-            session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
-            return onnx_predict(session, image, class_names, top_k=3)
+        # Run ONNX classification
+        import onnxruntime as ort
+        session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
 
-        classification_result = await asyncio.to_thread(_sync_classify)
+        classification_result = onnx_predict(session, image, class_names, top_k=3)
 
         result = {
             "success": True,
@@ -148,8 +131,6 @@ async def predict(
 
         return JSONResponse(content=result)
 
-    except ModuleNotFoundError as e:
-        raise HTTPException(status_code=500, detail=f"Missing dependency at runtime: {e.name}")
     except HTTPException:
         raise
     except Exception as e:
@@ -157,5 +138,5 @@ async def predict(
 
 
 if __name__ == "__main__":
-    # Run with: python ai/predict_server_fastapi.py
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Run with: python predict_server_fastapi.py
+    uvicorn.run("predict_server_fastapi:app", host="0.0.0.0", port=8000)
