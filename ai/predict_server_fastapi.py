@@ -26,9 +26,8 @@ from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
 import uvicorn
-
-# Import prediction function from existing script
-from predict_severity_api_onnx import predict_severity_json, onnx_predict, find_default_onnx, load_class_map, load_json
+import importlib
+import asyncio
 import cv2
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
@@ -47,6 +46,13 @@ async def predict_with_severity(
     yolo_weights: str | None = Query(None, description="Path to YOLO .pt weights file")
 ):
     try:
+        # Lazy import of prediction helpers so module imports don't fail
+        try:
+            psa = importlib.import_module('ai.predict_severity_api_onnx')
+        except Exception:
+            psa = importlib.import_module('predict_severity_api_onnx')
+        predict_severity_json = getattr(psa, 'predict_severity_json')
+
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -54,14 +60,18 @@ async def predict_with_severity(
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode uploaded image")
 
-        # Call prediction using in-memory image (no disk save)
-        result = predict_severity_json(
-            image=image,
-            classifier_onnx=classifier_onnx,
-            sam_checkpoint=None,
-            yolo_weights=yolo_weights,
-            skip_sam=not use_sam
-        )
+        # Call prediction using in-memory image (no disk save).
+        # Run in a thread to avoid blocking the event loop.
+        def _sync_predict():
+            return predict_severity_json(
+                image=image,
+                classifier_onnx=classifier_onnx,
+                sam_checkpoint=None,
+                yolo_weights=yolo_weights,
+                skip_sam=not use_sam
+            )
+
+        result = await asyncio.to_thread(_sync_predict)
 
         result.pop('image_path', None)
         return JSONResponse(content=result)
@@ -78,6 +88,17 @@ async def predict(
     classifier_onnx: str | None = Query(None, description="Path to ONNX classifier file (defaults to mobilenet if available)")
 ):
     try:
+        # Lazy import helpers
+        try:
+            psa = importlib.import_module('ai.predict_severity_api_onnx')
+        except Exception:
+            psa = importlib.import_module('predict_severity_api_onnx')
+
+        find_default_onnx = getattr(psa, 'find_default_onnx')
+        load_class_map = getattr(psa, 'load_class_map')
+        load_json = getattr(psa, 'load_json')
+        onnx_predict = getattr(psa, 'onnx_predict')
+
         contents = await file.read()
         import numpy as np
         arr = np.frombuffer(contents, dtype=np.uint8)
@@ -112,11 +133,13 @@ async def predict(
         if class_names is None:
             class_names = [f"Class_{i}" for i in range(17)]
 
-        # Run ONNX classification
-        import onnxruntime as ort
-        session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
+        # Run ONNX classification in a thread to avoid blocking the event loop.
+        def _sync_classify():
+            import onnxruntime as ort
+            session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
+            return onnx_predict(session, image, class_names, top_k=3)
 
-        classification_result = onnx_predict(session, image, class_names, top_k=3)
+        classification_result = await asyncio.to_thread(_sync_classify)
 
         result = {
             "success": True,
@@ -139,4 +162,4 @@ async def predict(
 
 if __name__ == "__main__":
     # Run with: python predict_server_fastapi.py
-    uvicorn.run("predict_server_fastapi:app", host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
