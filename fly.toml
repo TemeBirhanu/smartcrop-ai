@@ -1,0 +1,32 @@
+app = "smartcrop-ai"
+
+# Recommended settings for a FastAPI / uvicorn app packaged with a Dockerfile.
+# Adjust `app` above to a unique name if necessary (must be unique across your Fly account).
+
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[env]
+# Uvicorn will listen on this port inside the container; Fly forwards HTTP to it.
+PORT = "8080"
+# Ensure Matplotlib can write its cache in the container
+MPLCONFIGDIR = "/tmp/matplotlib"
+# Keep single worker by default; tune for your instance size
+WEB_CONCURRENCY = "1"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 20
+    hard_limit = 25
