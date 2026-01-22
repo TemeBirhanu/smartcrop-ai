@@ -29,8 +29,51 @@ import uvicorn
 import importlib
 import asyncio
 import cv2
+import time
+import threading
+import logging
+
+# Ensure Matplotlib writes cache to a writable temp folder on Render
+os.environ.setdefault('MPLCONFIGDIR', '/tmp/matplotlib')
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SmartCrop Severity API (ONNX)")
+
+# Simple cache for ONNX sessions to avoid recreating them per request
+_onnx_sessions: dict[str, object] = {}
+_onnx_lock = threading.Lock()
+
+
+async def get_onnx_session(onnx_path: Path):
+    key = str(onnx_path)
+    if key in _onnx_sessions:
+        return _onnx_sessions[key]
+
+    def _create():
+        import onnxruntime as ort
+        logger.info("Creating ONNX session for %s", key)
+        return ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
+
+    session = await asyncio.to_thread(_create)
+    with _onnx_lock:
+        # another thread might have set it while we were creating
+        _onnx_sessions.setdefault(key, session)
+    return _onnx_sessions[key]
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Pre-warm common model if present to reduce first-request latency
+    try:
+        mobilenet_candidate = Path('outputs/models/exported/mobilenet_v3.onnx')
+        if mobilenet_candidate.exists():
+            logger.info("Pre-warming ONNX session for %s", mobilenet_candidate)
+            # schedule pre-warm without awaiting to not block startup
+            asyncio.create_task(get_onnx_session(mobilenet_candidate))
+    except Exception:
+        logger.exception("Pre-warm failed")
 
 
 @app.get("/health")
@@ -55,8 +98,10 @@ async def predict_with_severity(
 
         contents = await file.read()
         import numpy as np
+        t0 = time.perf_counter()
         arr = np.frombuffer(contents, dtype=np.uint8)
         image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        logger.info("Image decode took %.3fs", time.perf_counter() - t0)
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode uploaded image")
 
@@ -71,7 +116,9 @@ async def predict_with_severity(
                 skip_sam=not use_sam
             )
 
+        t0 = time.perf_counter()
         result = await asyncio.to_thread(_sync_predict)
+        logger.info("predict_severity_json took %.3fs", time.perf_counter() - t0)
 
         result.pop('image_path', None)
         return JSONResponse(content=result)
@@ -101,8 +148,10 @@ async def predict(
 
         contents = await file.read()
         import numpy as np
+        t0 = time.perf_counter()
         arr = np.frombuffer(contents, dtype=np.uint8)
         image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        logger.info("Image decode took %.3fs", time.perf_counter() - t0)
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode uploaded image")
 
@@ -133,13 +182,13 @@ async def predict(
         if class_names is None:
             class_names = [f"Class_{i}" for i in range(17)]
 
-        # Run ONNX classification in a thread to avoid blocking the event loop.
-        def _sync_classify():
-            import onnxruntime as ort
-            session = ort.InferenceSession(str(onnx_path), providers=['CPUExecutionProvider'])
-            return onnx_predict(session, image, class_names, top_k=3)
+        # Get or create ONNX session (cached) and run classification in thread.
+        t0 = time.perf_counter()
+        session = await get_onnx_session(onnx_path)
+        logger.info("Obtained ONNX session in %.3fs", time.perf_counter() - t0)
 
-        classification_result = await asyncio.to_thread(_sync_classify)
+        classification_result = await asyncio.to_thread(lambda: onnx_predict(session, image, class_names, top_k=3))
+        logger.info("onnx_predict took %.3fs", time.perf_counter() - t0)
 
         result = {
             "success": True,
